@@ -340,8 +340,15 @@ const repaint = () => {
       }
 
       /* Unbound but named after a token: a swatch whose binding was toggled off
-         by an earlier bad repair. One call restores it. */
-      if (tokens[shape.name]) { shape.applyToken(tokens[shape.name], [prop]); rebound++; }
+         by an earlier bad repair. One call restores it.
+
+         FILL ONLY. A shape named `color.primary` is ABOUT its fill; its stroke
+         is separate — on the palette board it is a deliberately unbound grey
+         hairline that makes white swatches visible on a white ground. Applying
+         this to strokeColor bound all 138 hairlines to their swatch's own
+         colour, so every border painted identically to its fill and the
+         hairlines vanished. Caught in the file, not in review. */
+      if (prop === 'fill' && tokens[shape.name]) { shape.applyToken(tokens[shape.name], [prop]); rebound++; }
     }
     (shape.children || []).forEach(walk);
   };
