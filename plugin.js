@@ -204,6 +204,47 @@ const repaint = () => {
   return { repainted, rebound };
 };
 
+/* A page can only be modified while it is ACTIVE — touching a non-active page
+   throws "Cannot modify a page that is not currently active". So walking the
+   whole file means opening each page in turn and restoring the original at the
+   end. `penpotUtils` does NOT exist in the plugin sandbox (it is an MCP-side
+   helper), so pages come from penpot.currentFile.pages. */
+const forEachPage = async (fn) => {
+  const started = penpot.currentPage;
+  const raw = (penpot.currentFile && penpot.currentFile.pages) || [];
+  /* Only pages we can actually address. If currentFile.pages turns out not to
+     hand back usable page objects, fall back to the active page rather than
+     throwing — a partial repaint beats a dead button. */
+  const pages = raw.filter((p) => p && p.id) ;
+  const list = pages.length ? pages : [penpot.currentPage];
+  const results = [];
+  for (const page of list) {
+    try {
+      if (penpot.currentPage.id !== page.id) {
+        penpot.openPage(page);
+        await new Promise((r) => setTimeout(r, 350)); // let the switch settle
+      }
+      results.push({ page: penpot.currentPage.name, ...fn() });
+    } catch (err) {
+      results.push({ page: (page && page.name) || '?', repainted: 0, rebound: 0, stale: [], placeholder: [], error: String(err && err.message ? err.message : err) });
+    }
+  }
+  if (penpot.currentPage.id !== started.id) {
+    penpot.openPage(started);
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  return results;
+};
+
+const repaintAll = async () => {
+  const per = await forEachPage(repaint);
+  return {
+    per,
+    repainted: per.reduce((n, r) => n + r.repainted, 0),
+    rebound: per.reduce((n, r) => n + r.rebound, 0),
+  };
+};
+
 const audit = () => {
   const tokens = activeTokens();
   const stale = [], placeholder = [];
@@ -223,36 +264,47 @@ const audit = () => {
   return { stale, placeholder };
 };
 
+/* Auditing only READS, so it does not need the page active — but shape trees are
+   only reachable through the page object, and the same open-each-page walk is
+   the simplest thing that is correct on both counts. */
+const auditAll = async () => {
+  const per = await forEachPage(audit);
+  return {
+    stale: per.flatMap((r) => r.stale.map((s) => `${r.page}: ${s}`)),
+    placeholder: per.flatMap((r) => r.placeholder.map((s) => `${r.page}: ${s}`)),
+  };
+};
+
 /* ---------- UI wiring ---------- */
 
 penpot.ui.open('CC Palette', '', { width: 340, height: 620 });
 
 const pushSeeds = () => penpot.ui.sendMessage({ type: 'seeds', seeds: readSeeds() });
 
-penpot.ui.onMessage((msg) => {
+penpot.ui.onMessage(async (msg) => {
   try {
     if (msg.type === 'ready') return pushSeeds();
 
     if (msg.type === 'apply') {
       const changed = recompute(msg.seeds);
-      const painted = repaint();
+      const painted = await repaintAll();
       pushSeeds();
       return penpot.ui.sendMessage({
         type: 'result',
-        text: `${changed.length} token${changed.length === 1 ? '' : 's'} updated · ${painted.repainted} repainted${painted.rebound ? ` · ${painted.rebound} rebound` : ''}`,
+        text: `${changed.length} token${changed.length === 1 ? '' : 's'} updated · ${painted.repainted} repainted across ${painted.per.length} page${painted.per.length === 1 ? '' : 's'}${painted.rebound ? ` · ${painted.rebound} rebound` : ''}`,
       });
     }
 
     if (msg.type === 'repaint') {
-      const painted = repaint();
+      const painted = await repaintAll();
       return penpot.ui.sendMessage({
         type: 'result',
-        text: `${painted.repainted} repainted${painted.rebound ? ` · ${painted.rebound} rebound` : ''}`,
+        text: `${painted.repainted} repainted across ${painted.per.length} page${painted.per.length === 1 ? '' : 's'}${painted.rebound ? ` · ${painted.rebound} rebound` : ''}`,
       });
     }
 
     if (msg.type === 'audit') {
-      const { stale, placeholder } = audit();
+      const { stale, placeholder } = await auditAll();
       return penpot.ui.sendMessage({
         type: 'result',
         text: stale.length || placeholder.length
