@@ -461,7 +461,14 @@ const addPalette = (rawName, hex) => {
 
 /* ---------- UI wiring ---------- */
 
-penpot.ui.open('CC Palette', '', { width: 340, height: 620 });
+/* Empty string = index.html next to the plugin, which is right for local dev.
+   scripts/publish-plugin.js REWRITES this line on the published copy to an
+   absolute URL carrying a hash of index.html, so a UI change is picked up on
+   the next open instead of waiting out GitHub Pages' 10-minute cache. If the
+   panel ever opens blank, this is the first thing to suspect — set it back to
+   '' and republish. */
+const UI_URL = 'https://anthonyb-cc.github.io/cc-penpot-plugin/index.html?v=1177fcfead';
+penpot.ui.open('CC Palette', UI_URL, { width: 340, height: 620 });
 
 const pushSeeds = () => penpot.ui.sendMessage({ type: 'seeds', seeds: readSeeds() });
 
