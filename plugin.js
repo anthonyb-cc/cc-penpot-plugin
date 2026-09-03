@@ -305,12 +305,23 @@ penpot.ui.onMessage(async (msg) => {
 
     if (msg.type === 'audit') {
       const { stale, placeholder } = await auditAll();
-      return penpot.ui.sendMessage({
-        type: 'result',
-        text: stale.length || placeholder.length
-          ? `${stale.length} stale, ${placeholder.length} unresolved${placeholder.length ? ' (a token value is an expression — Penpot cannot apply those)' : ''}`
-          : 'All bound shapes match their tokens.',
-      });
+      if (!stale.length && !placeholder.length) {
+        return penpot.ui.sendMessage({ type: 'result', text: 'All bound shapes match their tokens.' });
+      }
+      /* List the offenders, not just a count. "1 stale" tells you nothing about
+         WHICH shape, on which page, or whether every page was even walked. */
+      const lines = [];
+      if (stale.length) {
+        lines.push(`${stale.length} stale (paint disagrees with token):`);
+        lines.push(...stale.slice(0, 10).map((s) => '  ' + s));
+        if (stale.length > 10) lines.push(`  …and ${stale.length - 10} more`);
+      }
+      if (placeholder.length) {
+        lines.push(`${placeholder.length} unresolved — a token value is an expression, which Penpot cannot apply:`);
+        lines.push(...placeholder.slice(0, 10).map((s) => '  ' + s));
+      }
+      if (stale.length) lines.push('', 'Press Repaint bound shapes.');
+      return penpot.ui.sendMessage({ type: 'result', text: lines.join('\n') });
     }
   } catch (err) {
     penpot.ui.sendMessage({ type: 'result', text: `Error: ${err && err.message ? err.message : String(err)}` });
