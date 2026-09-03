@@ -58,6 +58,19 @@
   <fieldset><legend>Brand</legend><div id="brand"></div></fieldset>
   <fieldset><legend>Status</legend><div id="status"></div></fieldset>
 
+  <fieldset><legend>Add a palette</legend>
+    <div class="row">
+      <input id="newName" type="text" placeholder="name (e.g. tertiary)" maxlength="20">
+      <input id="newHex" type="text" value="#3366FF" maxlength="7">
+      <input id="newSwatch" type="color" value="#3366FF">
+    </div>
+    <button id="addPalette" class="secondary">Generate ramp + ladder</button>
+    <p class="note">Creates the seed, 12 ramp steps and an 11-step translucency ladder.
+      Keep it by adding the seed and its name to <code>palettes</code> in
+      <code>brands/&lt;name&gt;.json</code>. No semantic tokens are created — a colour the
+      framework has no counterpart for must not become one production CSS cannot produce.</p>
+  </fieldset>
+
   <button id="apply">Apply &amp; recompute</button>
   <button id="repaint" class="secondary">Repaint bound shapes</button>
   <button id="audit" class="secondary">Check for drift</button>
@@ -67,16 +80,17 @@
     but never repaints what is already on the canvas.</p>
 
 <script>
-  const BRAND = ['color.primary', 'color.secondary', 'color.accent', 'color.neutral', 'color.white', 'color.black'];
+  /* Seeds arrive tagged with their role, so this file keeps no palette list —
+     a brand with a 4th or 5th colour renders without touching the UI. */
   let seeds = [];
 
   const send = (msg) => parent.postMessage(msg, '*');
 
   const render = () => {
-    for (const [id, names] of [['brand', BRAND], ['status', null]]) {
+    for (const id of ['brand', 'status']) {
       const host = document.getElementById(id);
       host.innerHTML = '';
-      const list = seeds.filter((s) => (names ? names.includes(s.name) : !BRAND.includes(s.name)));
+      const list = seeds.filter((s) => (s.role || 'brand') === id);
       for (const s of list) {
         const row = document.createElement('div');
         row.className = 'row';
@@ -108,7 +122,24 @@
   };
 
   const out = document.getElementById('out');
-  const busy = (on) => ['apply', 'repaint', 'audit'].forEach((id) => { document.getElementById(id).disabled = on; });
+  const busy = (on) => ['apply', 'repaint', 'audit', 'addPalette'].forEach((id) => { document.getElementById(id).disabled = on; });
+
+  const newName = document.getElementById('newName');
+  const newHex = document.getElementById('newHex');
+  const newSwatch = document.getElementById('newSwatch');
+  newSwatch.addEventListener('input', () => { newHex.value = newSwatch.value.toUpperCase(); });
+  newHex.addEventListener('input', () => {
+    const v = newHex.value.trim().toUpperCase();
+    if (/^#[0-9A-F]{6}$/.test(v)) newSwatch.value = v;
+  });
+  document.getElementById('addPalette').addEventListener('click', () => {
+    const name = newName.value.trim();
+    const hex = newHex.value.trim().toUpperCase();
+    if (!name) { out.textContent = 'Give the palette a name.'; return; }
+    if (!/^#[0-9A-F]{6}$/.test(hex)) { out.textContent = 'Need a 6-digit hex.'; return; }
+    busy(true); out.textContent = 'Generating…';
+    send({ type: 'addPalette', name, hex });
+  });
 
   document.getElementById('apply').addEventListener('click', () => {
     busy(true); out.textContent = 'Recomputing…';

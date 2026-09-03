@@ -11,14 +11,31 @@
  * plugin producing different ramps is the failure mode to watch for.
  */
 
-/* `accent` has no framework counterpart — a Penpot-only exploration palette:
-   raw ramp + ladder, deliberately NO semantic tokens, so a mockup cannot quietly
-   depend on a colour production CSS has no way to produce. */
-const PALETTES = ['primary', 'secondary', 'neutral', 'accent'];
+/* Which seeds are PALETTES is DISCOVERED, not hardcoded: `color.X` is a palette
+   when `color.X-l-1` exists beside it. A brand needing a 4th or 5th colour gets
+   one by adding it — in `brands/<name>.json` (seed + `palettes` entry) or via
+   addPalette() below — and every derived step follows with NO code change. */
+const RAW = ['white', 'black'];                    /* ladder only, never a ramp */
 const STATUS = ['success', 'danger', 'warning', 'info'];
+const BASE_PALETTES = ['primary', 'secondary', 'neutral'];
 /* The framework's 11 translucency steps, as percentages of the seed colour. */
 const TRANSLUCENT_PCT = [5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 95];
-const SEED_NAMES = [...PALETTES.map((p) => `color.${p}`), 'color.white', 'color.black', ...STATUS.map((s) => `color.${s}`)];
+
+const discoverPalettes = (tokens) => {
+  const found = [];
+  for (const name of Object.keys(tokens)) {
+    const m = /^color\.([a-z0-9-]+)-l-1$/.exec(name);
+    if (m && tokens['color.' + m[1]]) found.push(m[1]);
+  }
+  for (const p of BASE_PALETTES) if (found.indexOf(p) < 0 && tokens['color.' + p]) found.push(p);
+  return found;
+};
+
+const seedNamesFor = (palettes) => [
+  ...palettes.map((p) => `color.${p}`),
+  ...RAW.map((r) => `color.${r}`),
+  ...STATUS.map((s) => `color.${s}`),
+];
 
 /* ---------- Colour maths (OKLCH) ----------
    MIRRORED FROM scripts/colour.js. The sandbox has no module loader, so this is
@@ -133,9 +150,14 @@ const activeTokens = () => {
 
 const readSeeds = () => {
   const tokens = allTokens();
-  return SEED_NAMES
+  /* role travels with the seed, so the UI needs no copy of the palette list */
+  return seedNamesFor(discoverPalettes(tokens))
     .filter((n) => tokens[n])
-    .map((n) => ({ name: n, value: String(tokens[n].value).toUpperCase() }));
+    .map((n) => ({
+      name: n,
+      value: String(tokens[n].value).toUpperCase(),
+      role: STATUS.indexOf(n.replace('color.', '')) >= 0 ? 'status' : 'brand',
+    }));
 };
 
 /* ---------- Actions ---------- */
@@ -156,7 +178,8 @@ const recompute = (seedOverrides) => {
     changed.push(name);
   };
 
-  for (const p of PALETTES) {
+  const palettes = discoverPalettes(tokens);
+  for (const p of palettes) {
     const seed = (seedOverrides && seedOverrides[`color.${p}`]) || (tokens[`color.${p}`] && tokens[`color.${p}`].value);
     if (!seed) continue;
     for (const [stepName, hex] of Object.entries(buildRamp(seed))) set(`color.${p}-${stepName}`, hex);
@@ -173,7 +196,7 @@ const recompute = (seedOverrides) => {
      8-digit hex is stored verbatim and paints at that alpha. (`resolvedValue`
      strips it, which is what made these look impossible; read the PAINTED
      value, not resolvedValue.) So one token per step, no opacity pairing. */
-  for (const base of [...PALETTES, 'white', 'black']) {
+  for (const base of [...palettes, ...RAW]) {
     const seed = (seedOverrides && seedOverrides[`color.${base}`]) || (tokens[`color.${base}`] && tokens[`color.${base}`].value);
     if (!seed) continue;
     const hex6 = String(seed).slice(0, 7).toUpperCase();
@@ -399,6 +422,43 @@ const auditAll = async () => {
   };
 };
 
+/* Add a whole palette from one seed: the 12-step ramp and the 11-step
+   translucency ladder, into the same sets the pipeline uses. This is the
+   in-Penpot equivalent of adding a seed plus a `palettes` entry to
+   brands/<name>.json — do it here to try a colour, do it there to keep it.
+
+   No semantic tokens are created, deliberately: a palette the framework has no
+   counterpart for must not gain a `color.bg-<name>` that production CSS cannot
+   produce. It is a raw palette to design WITH, not a new vocabulary. */
+const addPalette = (rawName, hex) => {
+  const name = String(rawName || '').trim().toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
+  if (!name) throw new Error('name required');
+  if (!/^#[0-9A-Fa-f]{6}$/.test(String(hex || ''))) throw new Error('need a 6-digit hex');
+  const seedHex = String(hex).toUpperCase();
+
+  const cat = catalog();
+  const brandSet = cat.sets.find((x) => /^brand\//.test(x.name)) || cat.sets.find((x) => x.name === 'primitives');
+  const rampSet = cat.sets.find((x) => x.name === 'ramp') || brandSet;
+  if (!brandSet || !rampSet) throw new Error('token sets not found');
+
+  const tokens = allTokens();
+  if (tokens['color.' + name]) throw new Error('color.' + name + ' already exists');
+
+  brandSet.addToken({ name: 'color.' + name, type: 'color', value: seedHex });
+
+  let n = 1;
+  for (const [step, value] of Object.entries(buildRamp(seedHex))) {
+    rampSet.addToken({ name: `color.${name}-${step}`, type: 'color', value });
+    n++;
+  }
+  TRANSLUCENT_PCT.forEach((pct, i) => {
+    const a = Math.round(pct / 100 * 255).toString(16).padStart(2, '0').toUpperCase();
+    rampSet.addToken({ name: `color.${name}-t-${i + 1}`, type: 'color', value: seedHex + a });
+    n++;
+  });
+  return { name, created: n };
+};
+
 /* ---------- UI wiring ---------- */
 
 penpot.ui.open('CC Palette', '', { width: 340, height: 620 });
@@ -416,6 +476,16 @@ penpot.ui.onMessage(async (msg) => {
       return penpot.ui.sendMessage({
         type: 'result',
         text: `${changed.length} token${changed.length === 1 ? '' : 's'} updated · ${painted.repainted} repainted across ${painted.per.length} page${painted.per.length === 1 ? '' : 's'}${painted.rebound ? ` · ${painted.rebound} rebound` : ''}`,
+      });
+    }
+
+    if (msg.type === 'addPalette') {
+      const r = addPalette(msg.name, msg.hex);
+      pushSeeds();
+      return penpot.ui.sendMessage({
+        type: 'result',
+        text: `Added color.${r.name} — ${r.created} tokens (12 ramp + 11 translucency). `
+          + `Add it to brands/<name>.json (seed + \`palettes\`) to keep it.`,
       });
     }
 
