@@ -59,6 +59,17 @@
     background: var(--panel); border: 1px solid var(--line); border-radius: 7px;
     font: 11px/1.4 ui-monospace, monospace; color: var(--muted); white-space: pre-wrap;
   }
+  details {
+    border: 1px solid var(--line); border-radius: 8px; margin: 0 0 12px; padding: 8px 10px;
+  }
+  details summary {
+    font-size: 10px; text-transform: uppercase; letter-spacing: .06em;
+    color: var(--muted); cursor: pointer; list-style: none;
+  }
+  details summary::-webkit-details-marker { display: none; }
+  details summary::before { content: '+ '; }
+  details[open] summary::before { content: '– '; }
+  details[open] summary { margin-bottom: 8px; }
   .note { font-size: 10px; color: var(--muted); margin: 8px 2px 0; line-height: 1.4; }
 </style>
 </head>
@@ -69,24 +80,24 @@
   <fieldset><legend>Brand</legend><div id="brand"></div></fieldset>
   <fieldset><legend>Status</legend><div id="status"></div></fieldset>
 
-  <fieldset><legend>Add a palette</legend>
+  <details id="addBox">
+    <summary>Add a palette</summary>
     <div class="row">
       <input id="newName" class="name" type="text" placeholder="name (e.g. tertiary)" maxlength="20" autocapitalize="off" autocomplete="off" spellcheck="false">
       <input id="newHex" type="text" value="#3366FF" maxlength="7">
       <input id="newSwatch" type="color" value="#3366FF">
     </div>
     <button id="addPalette" class="secondary">Generate ramp + ladder</button>
-    <p class="note">Seed + 12 ramp steps + 11 translucency steps. No semantic tokens.
-      To keep it, add the seed and its name to <code>palettes</code> in the brand file.</p>
-  </fieldset>
+    <p class="note">Seed + 12 ramp + 11 translucency steps. No semantic tokens.
+      Keep it via <code>palettes</code> in the brand file.</p>
+  </details>
 
   <button id="apply">Apply &amp; recompute</button>
   <button id="repaint" class="secondary">Repaint bound shapes</button>
   <button id="audit" class="secondary">Check for drift</button>
 
   <div id="out">Loading seeds…</div>
-  <p class="note">After importing a token file, press Repaint — an import updates values
-    but never repaints the canvas.</p>
+  <p class="note">An import updates values but never repaints — press Repaint after one.</p>
 
 <script>
   /* Seeds arrive tagged with their role, so this file keeps no palette list —

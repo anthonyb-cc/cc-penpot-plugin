@@ -467,7 +467,7 @@ const addPalette = (rawName, hex) => {
    the next open instead of waiting out GitHub Pages' 10-minute cache. If the
    panel ever opens blank, this is the first thing to suspect — set it back to
    '' and republish. */
-const UI_URL = 'https://anthonyb-cc.github.io/cc-penpot-plugin/index.html?v=658126ac0b';
+const UI_URL = 'https://anthonyb-cc.github.io/cc-penpot-plugin/index.html?v=f4942ad7d2';
 penpot.ui.open('CC Palette', UI_URL, { width: 360, height: 720 });
 
 const pushSeeds = () => penpot.ui.sendMessage({ type: 'seeds', seeds: readSeeds() });
