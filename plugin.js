@@ -183,15 +183,15 @@ const recompute = (seedOverrides) => {
   return changed;
 };
 
-/* Shadows CANNOT be token-bound. Penpot rejects `shadowColor` / `shadows` /
-   `dropShadowColor` / `boxShadowColor` as property names, and accepts `shadow`
-   silently while recording no binding at all (verified 2026-09-03). Shadow
-   TOKENS are worse than unsupported: creating one succeeds, then reading its
-   resolvedValue or applying it throws, and poisons every token read in the file
-   until it is removed.
+/* Shadow TOKENS work (type `boxShadow`, bound via the property name `shadow`).
+   An earlier note here said they were broken; that was wrong — it came from
+   creating one with a CSS-STRING value, which Penpot accepts but cannot
+   resolve, and which then throws on every token read in the file. Use the
+   structured value shape and they are fine. See scripts/push-shadows.js.
 
-   So shadows are repainted by ROLE instead of by binding. That is exact here
-   because the four shadow colour tokens collapse to two real values —
+   Shapes whose shadow is NOT bound (a one-off shadow a designer applied by
+   hand) are still repainted by ROLE, which is exact because the four shadow
+   colour tokens collapse to two real values —
    color.shadow / -strong are neutral, color.shadow-highlight / -lift are white:
 
      inner-shadow  -> color.shadow-highlight   (the top-edge lift highlight)
@@ -211,6 +211,28 @@ const dist = (a, b) => {
 const repaintShadows = (shape, tokens) => {
   const arr = shape.shadows;
   if (!Array.isArray(arr) || !arr.length) return 0;
+
+  /* Shadows CAN be token-bound after all (property name `shadow`). When one is,
+     the token is the authority and the role heuristic below must not touch it —
+     a bound shadow is repainted the same way a bound colour is, by toggling.
+     resolvedValue strips the layer alpha, so compare geometry and hex only. */
+  const boundName = shape.tokens && shape.tokens.shadow;
+  if (boundName && tokens[boundName]) {
+    let want = null;
+    try { want = tokens[boundName].resolvedValue; } catch (e) { want = null; }
+    if (!Array.isArray(want)) return 0;
+    const same = want.length === arr.length && want.every((w, i) => {
+      const g = arr[i];
+      return g && g.offsetX === w.offsetX && g.offsetY === w.offsetY && g.blur === w.blur
+        && g.spread === w.spread && (g.style === 'inner-shadow') === !!w.inset
+        && String(g.color && g.color.color).toUpperCase() === String(w.color).toUpperCase();
+    });
+    if (same) return 0;
+    shape.applyToken(tokens[boundName], ['shadow']);   // toggles OFF
+    shape.applyToken(tokens[boundName], ['shadow']);   // and back ON, repainting
+    return 1;
+  }
+
   let n = 0;
   const next = arr.map((sh) => {
     const cur = sh.color && sh.color.color;
