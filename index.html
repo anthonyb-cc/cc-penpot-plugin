@@ -36,6 +36,13 @@
     background: var(--panel); color: var(--text);
     border: 1px solid var(--line); border-radius: 5px; padding: 5px 6px;
   }
+  /* The uppercase above is for HEX fields. A palette name is lowercased when it
+     is created, so uppercasing it here would show TERTIARY and make
+     color.tertiary — same trap, different field. */
+  .row input[type="text"].name {
+    flex: 1; width: auto; text-transform: lowercase;
+    font: 12px system-ui, sans-serif;
+  }
   button {
     width: 100%; padding: 9px; margin-bottom: 7px; cursor: pointer;
     font: 600 12px system-ui, sans-serif;
@@ -60,7 +67,7 @@
 
   <fieldset><legend>Add a palette</legend>
     <div class="row">
-      <input id="newName" type="text" placeholder="name (e.g. tertiary)" maxlength="20">
+      <input id="newName" class="name" type="text" placeholder="name (e.g. tertiary)" maxlength="20" autocapitalize="off" autocomplete="off" spellcheck="false">
       <input id="newHex" type="text" value="#3366FF" maxlength="7">
       <input id="newSwatch" type="color" value="#3366FF">
     </div>
