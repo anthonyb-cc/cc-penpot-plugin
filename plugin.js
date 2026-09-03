@@ -11,7 +11,10 @@
  * plugin producing different ramps is the failure mode to watch for.
  */
 
-const PALETTES = ['primary', 'secondary', 'neutral'];
+/* `accent` has no framework counterpart — a Penpot-only exploration palette:
+   raw ramp + ladder, deliberately NO semantic tokens, so a mockup cannot quietly
+   depend on a colour production CSS has no way to produce. */
+const PALETTES = ['primary', 'secondary', 'neutral', 'accent'];
 const STATUS = ['success', 'danger', 'warning', 'info'];
 /* The framework's 11 translucency steps, as percentages of the seed colour. */
 const TRANSLUCENT_PCT = [5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 95];
@@ -170,7 +173,7 @@ const recompute = (seedOverrides) => {
      8-digit hex is stored verbatim and paints at that alpha. (`resolvedValue`
      strips it, which is what made these look impossible; read the PAINTED
      value, not resolvedValue.) So one token per step, no opacity pairing. */
-  for (const base of ['white', 'black']) {
+  for (const base of [...PALETTES, 'white', 'black']) {
     const seed = (seedOverrides && seedOverrides[`color.${base}`]) || (tokens[`color.${base}`] && tokens[`color.${base}`].value);
     if (!seed) continue;
     const hex6 = String(seed).slice(0, 7).toUpperCase();
