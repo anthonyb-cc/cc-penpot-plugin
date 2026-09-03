@@ -240,13 +240,29 @@ const repaintShadows = (shape, tokens) => {
    called twice; a shape that has lost its binding needs it once. Getting this
    wrong strips colour bindings across the file, and a naive drift check then
    reports clean because there is nothing left to compare. */
+/* A token's alpha, following `{reference}` hops to the literal that carries it.
+   `resolvedValue` drops alpha, so this is the only way to see it. Returns null
+   when the token is fully opaque or cannot be resolved. */
+const alphaOf = (name, tokens, depth) => {
+  const t = tokens[name];
+  if (!t || (depth || 0) > 8) return null;
+  const v = String(t.value || '').trim();
+  const ref = /^\{(.+)\}$/.exec(v);
+  if (ref) return alphaOf(ref[1], tokens, (depth || 0) + 1);
+  const m = /^#([0-9a-f]{6})([0-9a-f]{2})$/i.exec(v);
+  return m ? parseInt(m[2], 16) / 255 : null;
+};
+
 const repaint = () => {
   const tokens = activeTokens();
   let repainted = 0, rebound = 0, shadows = 0;
 
   const walk = (shape) => {
     shadows += repaintShadows(shape, tokens);
-    for (const [prop, key, colourKey] of [['fill', 'fills', 'fillColor'], ['strokeColor', 'strokes', 'strokeColor']]) {
+    for (const [prop, key, colourKey, alphaKey] of [
+      ['fill', 'fills', 'fillColor', 'fillOpacity'],
+      ['strokeColor', 'strokes', 'strokeColor', 'strokeOpacity'],
+    ]) {
       const arr = shape[key];
       if (!Array.isArray(arr) || !arr[0] || !arr[0][colourKey]) continue;
 
@@ -255,7 +271,14 @@ const repaint = () => {
 
       if (bound) {
         const want = String(tokens[bound] && tokens[bound].resolvedValue).toUpperCase();
-        if (!tokens[bound] || painted === want) continue;
+        /* ALPHA BLIND SPOT: resolvedValue strips alpha, so a token that carries
+           it (#9C969B1A) compares equal on hex alone and a shape still painted
+           opaque would be skipped forever. Compare the alpha too, resolving the
+           reference chain by hand since resolvedValue will not give it to us. */
+        const wantA = alphaOf(bound, tokens);
+        const paintedA = arr[0][alphaKey];
+        const alphaOff = wantA !== null && typeof paintedA === 'number' && Math.abs(paintedA - wantA) > 0.001;
+        if (!tokens[bound] || (painted === want && !alphaOff)) continue;
         shape.applyToken(tokens[bound], [prop]); // toggles OFF
         shape.applyToken(tokens[bound], [prop]); // and back ON, repainting
         repainted++;
