@@ -22,9 +22,9 @@
   }
   h1 { font-size: 13px; margin: 0 0 2px; }
   p.sub { margin: 0 0 14px; color: var(--muted); font-size: 11px; }
-  fieldset { border: 1px solid var(--line); border-radius: 8px; margin: 0 0 12px; padding: 10px; }
+  fieldset { border: 1px solid var(--line); border-radius: 8px; margin: 0 0 10px; padding: 9px 10px; }
   legend { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); padding: 0 4px; }
-  .row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
   .row:last-child { margin-bottom: 0; }
   .row label { flex: 1; font-size: 12px; }
   .row input[type="color"] {
@@ -34,7 +34,7 @@
   .row input[type="text"] {
     width: 82px; font: 11px ui-monospace, monospace; text-transform: uppercase;
     background: var(--panel); color: var(--text);
-    border: 1px solid var(--line); border-radius: 5px; padding: 5px 6px;
+    border: 1px solid var(--line); border-radius: 5px; padding: 4px 6px;
   }
   /* The uppercase above is for HEX fields. A palette name is lowercased when it
      is created, so uppercasing it here would show TERTIARY and make
@@ -48,7 +48,7 @@
   .row > * { min-width: 0; }
   .note code { overflow-wrap: anywhere; }
   button {
-    width: 100%; padding: 9px; margin-bottom: 7px; cursor: pointer;
+    width: 100%; padding: 8px; margin-bottom: 6px; cursor: pointer;
     font: 600 12px system-ui, sans-serif;
     background: var(--accent); color: #fff; border: 0; border-radius: 7px;
   }
@@ -60,7 +60,7 @@
     font: 11px/1.4 ui-monospace, monospace; color: var(--muted); white-space: pre-wrap;
   }
   details {
-    border: 1px solid var(--line); border-radius: 8px; margin: 0 0 12px; padding: 8px 10px;
+    border: 1px solid var(--line); border-radius: 8px; margin: 0 0 10px; padding: 7px 10px;
   }
   details summary {
     font-size: 10px; text-transform: uppercase; letter-spacing: .06em;
@@ -74,11 +74,13 @@
 </style>
 </head>
 <body>
-  <h1>CC Palette</h1>
-  <p class="sub">Edit a seed. The ramp and every bound shape follow.</p>
+  <p class="sub">Edit a seed — the ramp and every bound shape follow.</p>
 
   <fieldset><legend>Brand</legend><div id="brand"></div></fieldset>
-  <fieldset><legend>Status</legend><div id="status"></div></fieldset>
+  <details id="statusBox">
+    <summary>Status</summary>
+    <div id="status"></div>
+  </details>
 
   <details id="addBox">
     <summary>Add a palette</summary>
