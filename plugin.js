@@ -13,6 +13,8 @@
 
 const PALETTES = ['primary', 'secondary', 'neutral'];
 const STATUS = ['success', 'danger', 'warning', 'info'];
+/* The framework's 11 translucency steps, as percentages of the seed colour. */
+const TRANSLUCENT_PCT = [5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 95];
 const SEED_NAMES = [...PALETTES.map((p) => `color.${p}`), 'color.white', 'color.black', ...STATUS.map((s) => `color.${s}`)];
 
 /* ---------- Colour maths (OKLCH) ----------
@@ -161,6 +163,21 @@ const recompute = (seedOverrides) => {
     const seed = (seedOverrides && seedOverrides[`color.${st}`]) || (tokens[`color.${st}`] && tokens[`color.${st}`].value);
     if (!seed) continue;
     set(`color.${st}-surface`, surface(seed));
+  }
+
+  /* Translucency ladders: --color-white-t-N / --color-black-t-N are
+     color-mix(seed N%, transparent). Penpot colour tokens DO carry alpha — an
+     8-digit hex is stored verbatim and paints at that alpha. (`resolvedValue`
+     strips it, which is what made these look impossible; read the PAINTED
+     value, not resolvedValue.) So one token per step, no opacity pairing. */
+  for (const base of ['white', 'black']) {
+    const seed = (seedOverrides && seedOverrides[`color.${base}`]) || (tokens[`color.${base}`] && tokens[`color.${base}`].value);
+    if (!seed) continue;
+    const hex6 = String(seed).slice(0, 7).toUpperCase();
+    TRANSLUCENT_PCT.forEach((pct, i) => {
+      const a = Math.round(pct / 100 * 255).toString(16).padStart(2, '0').toUpperCase();
+      set(`color.${base}-t-${i + 1}`, hex6 + a);
+    });
   }
 
   return changed;
