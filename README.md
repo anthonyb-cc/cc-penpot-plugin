@@ -8,7 +8,7 @@ Recomputes a colour ramp from brand seeds and repaints every bound shape, inside
 In Penpot press **Ctrl + Alt + P** and paste:
 
 ```
-https://anthony-creativecanary.github.io/cc-penpot-plugin/manifest.json
+https://anthonyb-cc.github.io/cc-penpot-plugin/manifest.json
 ```
 
 ## What it does
