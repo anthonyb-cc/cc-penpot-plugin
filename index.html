@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>CC Palette</title>
+<style>
+  :root {
+    --bg: #18181b; --panel: #232328; --line: #34343b;
+    --text: #e8e8ea; --muted: #9a9aa4; --accent: #7c5cff;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #ffffff; --panel: #f5f5f7; --line: #e0e0e6;
+      --text: #1c1c20; --muted: #6b6b76; --accent: #5b3fd6;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 14px;
+    font: 13px/1.45 system-ui, sans-serif;
+    background: var(--bg); color: var(--text);
+  }
+  h1 { font-size: 13px; margin: 0 0 2px; }
+  p.sub { margin: 0 0 14px; color: var(--muted); font-size: 11px; }
+  fieldset { border: 1px solid var(--line); border-radius: 8px; margin: 0 0 12px; padding: 10px; }
+  legend { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); padding: 0 4px; }
+  .row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .row:last-child { margin-bottom: 0; }
+  .row label { flex: 1; font-size: 12px; }
+  .row input[type="color"] {
+    width: 34px; height: 26px; padding: 0; border: 1px solid var(--line);
+    border-radius: 5px; background: none; cursor: pointer;
+  }
+  .row input[type="text"] {
+    width: 82px; font: 11px ui-monospace, monospace; text-transform: uppercase;
+    background: var(--panel); color: var(--text);
+    border: 1px solid var(--line); border-radius: 5px; padding: 5px 6px;
+  }
+  button {
+    width: 100%; padding: 9px; margin-bottom: 7px; cursor: pointer;
+    font: 600 12px system-ui, sans-serif;
+    background: var(--accent); color: #fff; border: 0; border-radius: 7px;
+  }
+  button.secondary { background: var(--panel); color: var(--text); border: 1px solid var(--line); }
+  button:disabled { opacity: .5; cursor: default; }
+  #out {
+    margin-top: 10px; padding: 9px; min-height: 34px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 7px;
+    font: 11px/1.4 ui-monospace, monospace; color: var(--muted); white-space: pre-wrap;
+  }
+  .note { font-size: 10px; color: var(--muted); margin: 8px 2px 0; line-height: 1.4; }
+</style>
+</head>
+<body>
+  <h1>CC Palette</h1>
+  <p class="sub">Edit a seed. The ramp and every bound shape follow.</p>
+
+  <fieldset><legend>Brand</legend><div id="brand"></div></fieldset>
+  <fieldset><legend>Status</legend><div id="status"></div></fieldset>
+
+  <button id="apply">Apply &amp; recompute</button>
+  <button id="repaint" class="secondary">Repaint bound shapes</button>
+  <button id="audit" class="secondary">Check for drift</button>
+
+  <div id="out">Loading seeds…</div>
+  <p class="note">Repaint separately after importing a token file — an import updates values
+    but never repaints what is already on the canvas.</p>
+
+<script>
+  const BRAND = ['color.primary', 'color.secondary', 'color.neutral', 'color.white', 'color.black'];
+  let seeds = [];
+
+  const send = (msg) => parent.postMessage(msg, '*');
+
+  const render = () => {
+    for (const [id, names] of [['brand', BRAND], ['status', null]]) {
+      const host = document.getElementById(id);
+      host.innerHTML = '';
+      const list = seeds.filter((s) => (names ? names.includes(s.name) : !BRAND.includes(s.name)));
+      for (const s of list) {
+        const row = document.createElement('div');
+        row.className = 'row';
+
+        const label = document.createElement('label');
+        label.textContent = s.name.replace('color.', '');
+
+        const swatch = document.createElement('input');
+        swatch.type = 'color';
+        swatch.value = s.value;
+
+        const hex = document.createElement('input');
+        hex.type = 'text';
+        hex.value = s.value;
+        hex.maxLength = 7;
+
+        /* Keep the two inputs in step, but only accept a complete hex — typing
+           "#2" should not repaint anything. */
+        swatch.addEventListener('input', () => { hex.value = swatch.value.toUpperCase(); s.value = hex.value; });
+        hex.addEventListener('input', () => {
+          const v = hex.value.trim().toUpperCase();
+          if (/^#[0-9A-F]{6}$/.test(v)) { swatch.value = v; s.value = v; }
+        });
+
+        row.append(label, hex, swatch);
+        host.appendChild(row);
+      }
+    }
+  };
+
+  const out = document.getElementById('out');
+  const busy = (on) => ['apply', 'repaint', 'audit'].forEach((id) => { document.getElementById(id).disabled = on; });
+
+  document.getElementById('apply').addEventListener('click', () => {
+    busy(true); out.textContent = 'Recomputing…';
+    send({ type: 'apply', seeds: Object.fromEntries(seeds.map((s) => [s.name, s.value])) });
+  });
+  document.getElementById('repaint').addEventListener('click', () => {
+    busy(true); out.textContent = 'Repainting…';
+    send({ type: 'repaint' });
+  });
+  document.getElementById('audit').addEventListener('click', () => {
+    busy(true); out.textContent = 'Checking…';
+    send({ type: 'audit' });
+  });
+
+  window.addEventListener('message', (event) => {
+    const msg = event.data;
+    if (!msg || !msg.type) return;
+    if (msg.type === 'seeds') {
+      seeds = msg.seeds;
+      render();
+      if (out.textContent === 'Loading seeds…') out.textContent = `${seeds.length} seeds loaded.`;
+    }
+    if (msg.type === 'result') { out.textContent = msg.text; busy(false); }
+  });
+
+  send({ type: 'ready' });
+</script>
+</body>
+</html>

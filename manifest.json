@@ -1,0 +1,8 @@
+{
+  "name": "CC Palette",
+  "description": "Recompute the colour ramp from brand seeds and repaint bound shapes",
+  "version": 2,
+  "code": "plugin.js",
+  "icon": "icon.svg",
+  "permissions": ["content:write", "library:write"]
+}
