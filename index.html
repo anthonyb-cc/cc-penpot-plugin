@@ -40,9 +40,13 @@
      is created, so uppercasing it here would show TERTIARY and make
      color.tertiary — same trap, different field. */
   .row input[type="text"].name {
-    flex: 1; width: auto; text-transform: lowercase;
+    /* min-width:0 is load-bearing: an <input> has an intrinsic ~20ch width, so
+       flex:1 will NOT shrink it below that and the row overflows the panel. */
+    flex: 1; width: auto; min-width: 0; text-transform: lowercase;
     font: 12px system-ui, sans-serif;
   }
+  .row > * { min-width: 0; }
+  .note code { overflow-wrap: anywhere; }
   button {
     width: 100%; padding: 9px; margin-bottom: 7px; cursor: pointer;
     font: 600 12px system-ui, sans-serif;
@@ -72,10 +76,8 @@
       <input id="newSwatch" type="color" value="#3366FF">
     </div>
     <button id="addPalette" class="secondary">Generate ramp + ladder</button>
-    <p class="note">Creates the seed, 12 ramp steps and an 11-step translucency ladder.
-      Keep it by adding the seed and its name to <code>palettes</code> in
-      <code>brands/&lt;name&gt;.json</code>. No semantic tokens are created — a colour the
-      framework has no counterpart for must not become one production CSS cannot produce.</p>
+    <p class="note">Seed + 12 ramp steps + 11 translucency steps. No semantic tokens.
+      To keep it, add the seed and its name to <code>palettes</code> in the brand file.</p>
   </fieldset>
 
   <button id="apply">Apply &amp; recompute</button>
@@ -83,8 +85,8 @@
   <button id="audit" class="secondary">Check for drift</button>
 
   <div id="out">Loading seeds…</div>
-  <p class="note">Repaint separately after importing a token file — an import updates values
-    but never repaints what is already on the canvas.</p>
+  <p class="note">After importing a token file, press Repaint — an import updates values
+    but never repaints the canvas.</p>
 
 <script>
   /* Seeds arrive tagged with their role, so this file keeps no palette list —
