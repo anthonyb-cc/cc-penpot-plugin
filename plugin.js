@@ -166,6 +166,57 @@ const recompute = (seedOverrides) => {
   return changed;
 };
 
+/* Shadows CANNOT be token-bound. Penpot rejects `shadowColor` / `shadows` /
+   `dropShadowColor` / `boxShadowColor` as property names, and accepts `shadow`
+   silently while recording no binding at all (verified 2026-09-03). Shadow
+   TOKENS are worse than unsupported: creating one succeeds, then reading its
+   resolvedValue or applying it throws, and poisons every token read in the file
+   until it is removed.
+
+   So shadows are repainted by ROLE instead of by binding. That is exact here
+   because the four shadow colour tokens collapse to two real values —
+   color.shadow / -strong are neutral, color.shadow-highlight / -lift are white:
+
+     inner-shadow  -> color.shadow-highlight   (the top-edge lift highlight)
+     drop-shadow   -> whichever of color.shadow / color.shadow-lift the layer's
+                      current colour is nearer, so lift shadows on dark surfaces
+                      stay white instead of collapsing to neutral
+
+   Each layer keeps its own geometry and alpha; only the hex moves. */
+const dist = (a, b) => {
+  if (!a || !b) return Infinity;
+  const p = (h) => [1, 3, 5].map((i) => parseInt(String(h).replace('#', '').slice(i - 1, i + 1), 16));
+  const [r1, g1, b1] = p(a), [r2, g2, b2] = p(b);
+  if ([r1, g1, b1, r2, g2, b2].some(isNaN)) return Infinity;
+  return Math.abs(r1 - r2) + Math.abs(g1 - g2) + Math.abs(b1 - b2);
+};
+
+const repaintShadows = (shape, tokens) => {
+  const arr = shape.shadows;
+  if (!Array.isArray(arr) || !arr.length) return 0;
+  let n = 0;
+  const next = arr.map((sh) => {
+    const cur = sh.color && sh.color.color;
+    const role = sh.style === 'inner-shadow'
+      ? 'color.shadow-highlight'
+      : (dist(cur, tokens['color.shadow-lift'] && tokens['color.shadow-lift'].resolvedValue)
+          < dist(cur, tokens['color.shadow'] && tokens['color.shadow'].resolvedValue)
+          ? 'color.shadow-lift' : 'color.shadow');
+    const t = tokens[role];
+    if (!t) return sh;
+    const want = String(t.resolvedValue).toUpperCase();
+    if (String(cur).toUpperCase() === want) return sh;
+    n++;
+    return {
+      style: sh.style, offsetX: sh.offsetX, offsetY: sh.offsetY,
+      blur: sh.blur, spread: sh.spread, hidden: sh.hidden,
+      color: { color: want, opacity: sh.color && sh.color.opacity },
+    };
+  });
+  if (n) shape.shadows = next;
+  return n;
+};
+
 /* Changing a token's VALUE does not repaint the shapes bound to it, on import or
    on edit. And `applyToken` is a TOGGLE — applying it to a property already
    bound to that token REMOVES the binding. So a stale bound shape needs it
@@ -174,9 +225,10 @@ const recompute = (seedOverrides) => {
    reports clean because there is nothing left to compare. */
 const repaint = () => {
   const tokens = activeTokens();
-  let repainted = 0, rebound = 0;
+  let repainted = 0, rebound = 0, shadows = 0;
 
   const walk = (shape) => {
+    shadows += repaintShadows(shape, tokens);
     for (const [prop, key, colourKey] of [['fill', 'fills', 'fillColor'], ['strokeColor', 'strokes', 'strokeColor']]) {
       const arr = shape[key];
       if (!Array.isArray(arr) || !arr[0] || !arr[0][colourKey]) continue;
@@ -201,7 +253,7 @@ const repaint = () => {
   };
 
   penpot.currentPage.root.children.forEach(walk);
-  return { repainted, rebound };
+  return { repainted, rebound, shadows };
 };
 
 /* A page can only be modified while it is ACTIVE — touching a non-active page
@@ -242,6 +294,7 @@ const repaintAll = async () => {
     per,
     repainted: per.reduce((n, r) => n + r.repainted, 0),
     rebound: per.reduce((n, r) => n + r.rebound, 0),
+    shadows: per.reduce((n, r) => n + (r.shadows || 0), 0),
   };
 };
 
