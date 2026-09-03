@@ -240,6 +240,12 @@ const repaintShadows = (shape, tokens) => {
    called twice; a shape that has lost its binding needs it once. Getting this
    wrong strips colour bindings across the file, and a naive drift check then
    reports clean because there is nothing left to compare. */
+/* Alpha is 8-bit, and Penpot stores it rounded: a token of #9C969B1A is
+   26/255 = 0.10196 but the shape reads back 0.1. A tolerance tighter than one
+   8-bit step therefore never converges — every Repaint "fixes" the same shapes
+   and reports work it did not do. One step IS the smallest real difference. */
+const ALPHA_EPS = 1 / 255 + 1e-6;
+
 /* A token's alpha, following `{reference}` hops to the literal that carries it.
    `resolvedValue` drops alpha, so this is the only way to see it. Returns null
    when the token is fully opaque or cannot be resolved. */
@@ -277,7 +283,7 @@ const repaint = () => {
            reference chain by hand since resolvedValue will not give it to us. */
         const wantA = alphaOf(bound, tokens);
         const paintedA = arr[0][alphaKey];
-        const alphaOff = wantA !== null && typeof paintedA === 'number' && Math.abs(paintedA - wantA) > 0.001;
+        const alphaOff = wantA !== null && typeof paintedA === 'number' && Math.abs(paintedA - wantA) > ALPHA_EPS;
         if (!tokens[bound] || (painted === want && !alphaOff)) continue;
         shape.applyToken(tokens[bound], [prop]); // toggles OFF
         shape.applyToken(tokens[bound], [prop]); // and back ON, repainting
