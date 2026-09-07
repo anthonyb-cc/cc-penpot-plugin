@@ -444,8 +444,18 @@ const addPalette = (rawName, hex) => {
   const seedHex = String(hex).toUpperCase();
 
   const cat = catalog();
-  const brandSet = cat.sets.find((x) => /^brand\//.test(x.name)) || cat.sets.find((x) => x.name === 'primitives');
-  const rampSet = cat.sets.find((x) => x.name === 'ramp') || brandSet;
+  /* `colour/brand` holds both the seed and its derived steps since the sets were
+     regrouped under `colour/`. The older `brand/<name>` + `ramp` split is kept as
+     a fallback for a file that has not been re-imported since.
+
+     The bare `primitives` fallback at the end used to be reached SILENTLY after
+     the regroup — neither `brand/` nor `ramp` existed any more, so a new palette
+     quietly put 24 colour tokens in with the radii and breakpoints. It still
+     worked, and still looked right, which is why nobody noticed. The set is
+     named in the result now so a wrong one is visible at the moment it happens. */
+  const set = (n) => cat.sets.find((x) => x.name === n);
+  const brandSet = set('colour/brand') || cat.sets.find((x) => /^brand\//.test(x.name)) || set('primitives');
+  const rampSet = set('colour/brand') || set('ramp') || brandSet;
   if (!brandSet || !rampSet) throw new Error('token sets not found');
 
   const tokens = allTokens();
@@ -463,7 +473,7 @@ const addPalette = (rawName, hex) => {
     rampSet.addToken({ name: `color.${name}-t-${i + 1}`, type: 'color', value: seedHex + a });
     n++;
   });
-  return { name, created: n };
+  return { name, created: n, set: brandSet.name };
 };
 
 /* ---------- UI wiring ---------- */
@@ -498,8 +508,8 @@ penpot.ui.onMessage(async (msg) => {
       pushSeeds();
       return penpot.ui.sendMessage({
         type: 'result',
-        text: `Added color.${r.name} — ${r.created} tokens (12 ramp + 11 translucency). `
-          + `Add it to brands/<name>.json (seed + \`palettes\`) to keep it.`,
+        text: `Added color.${r.name} in ${r.set} — ${r.created} tokens (12 ramp + 11 translucency), no semantic tokens. `
+          + `Press "Copy seeds for the brand file" to keep it through the next import.`,
       });
     }
 
