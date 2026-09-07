@@ -97,9 +97,13 @@
   <button id="apply">Apply &amp; recompute</button>
   <button id="repaint" class="secondary">Repaint bound shapes</button>
   <button id="audit" class="secondary">Check for drift</button>
+  <button id="seedsOut" class="secondary">Copy seeds for the brand file</button>
 
   <div id="out">Loading seeds…</div>
-  <p class="note">An import updates values but never repaints — press Repaint after one.</p>
+  <p class="note">Colour lives HERE. Before a structural re-import from the repo,
+    copy the seeds into <code>brands/&lt;name&gt;.json</code> — an import replaces
+    every token, so uncopied colour is reverted. An import also updates values
+    without repainting: press Repaint after one.</p>
 
 <script>
   /* Seeds arrive tagged with their role, so this file keeps no palette list —
@@ -174,6 +178,28 @@
   document.getElementById('audit').addEventListener('click', () => {
     busy(true); out.textContent = 'Checking…';
     send({ type: 'audit' });
+  });
+
+  /* Penpot is where colour is MANAGED; the repo only pushes structure back in.
+     But a DTCG import replaces every token, so a structural update reverts any
+     colour edited here unless the seeds go back to the brand file first. This
+     builds that file from what the panel already holds — no round trip to the
+     plugin, and no second copy of the palette list: role travels with the seed,
+     and white/black are seeds without being palettes. */
+  const RAW = ['white', 'black'];
+  document.getElementById('seedsOut').addEventListener('click', async () => {
+    const bare = (s) => s.name.replace('color.', '');
+    const json = JSON.stringify({
+      palettes: seeds.filter((s) => (s.role || 'brand') === 'brand' && RAW.indexOf(bare(s)) < 0).map(bare),
+      status: seeds.filter((s) => s.role === 'status').map(bare),
+      seeds: Object.fromEntries(seeds.slice().sort((a, b) => a.name.localeCompare(b.name)).map((s) => [s.name, s.value])),
+    }, null, 2);
+    /* clipboard is often blocked in the plugin iframe — the panel text is the
+       reliable path, the copy is a bonus */
+    let copied = false;
+    try { await navigator.clipboard.writeText(json); copied = true; } catch (e) { /* select from the panel instead */ }
+    out.textContent = (copied ? '// copied to clipboard — ' : '// select and copy — ')
+      + 'merge these three keys into brands/<name>.json\n' + json;
   });
 
   window.addEventListener('message', (event) => {
